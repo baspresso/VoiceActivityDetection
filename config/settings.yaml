@@ -1,0 +1,4 @@
+sample_rate: 16000
+frame_duration_ms: 20
+raw_audio_topic: raw_audio_frames
+vad_decisions_topic: vad_decisions

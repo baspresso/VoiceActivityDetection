@@ -1,0 +1,7 @@
+sounddevice
+numpy
+torch
+torchaudio
+pyannote.audio
+confluent-kafka
+PyYAML
