@@ -3,6 +3,7 @@ import time
 import numpy as np
 import torch
 from confluent_kafka import Consumer, Producer
+import argparse
 
 from src.models.vad_pipeline_init import get_vad_pipeline
 from src.utils.kafka_utils import get_consumer_config, get_producer_config
@@ -15,6 +16,10 @@ SAMPLE_RATE = config["sample_rate"]
 FRAME_DURATION_MS = config["frame_duration_ms"]
 RAW_AUDIO_TOPIC = config["raw_audio_topic"]
 VAD_DECISIONS_TOPIC = config["vad_decisions_topic"]
+
+def parse_key(key_str):
+    source_id, timestamp = key_str.split("-")
+    return source_id, int(timestamp)
 
 def main():
     consumer_conf = get_consumer_config("vad_group")
@@ -36,15 +41,18 @@ def main():
                 continue
             if msg.error():
                 continue
+            
+            frame_key_str = msg.key().decode("utf-8")
+            source_id, ts = parse_key(frame_key_str)
 
             frame_bytes = msg.value()
-            print("Consumed message size:", len(frame_bytes))
+            # print("Consumed message size:", len(frame_bytes))
             frame_int16 = np.frombuffer(frame_bytes, dtype=np.int16)
-            print("Consumer int16 stats:", frame_int16.min(), frame_int16.max(), frame_int16.mean())
+            # print("Consumer int16 stats:", frame_int16.min(), frame_int16.max(), frame_int16.mean())
             frame_key = msg.key().decode("utf-8")
             frame = np.frombuffer(frame_bytes, dtype=np.int16)
 
-            print("Consumer frame stats:", frame.min(), frame.max(), frame.mean())
+            # print("Consumer frame stats:", frame.min(), frame.max(), frame.mean())
 
             audio_buffer = np.concatenate((audio_buffer, frame))
             keys_buffer.append(frame_key)
@@ -69,6 +77,7 @@ def main():
                 keys_buffer = []
 
                 result_msg = {
+                    "source_id": source_id,
                     "timestamp": median_key,
                     "vad_label": decision
                 }
@@ -77,6 +86,7 @@ def main():
                     key=median_key,
                     value=str(result_msg)
                 )
+                print(result_msg)
                 producer.poll(0)
 
     except KeyboardInterrupt:

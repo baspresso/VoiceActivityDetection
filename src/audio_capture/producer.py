@@ -3,10 +3,16 @@ import time
 import queue
 import numpy as np
 import yaml
+import argparse
 
 from confluent_kafka import Producer
 from src.utils.kafka_utils import get_producer_config
 from src.utils.audio_utils import get_frame_size
+
+parser = argparse.ArgumentParser(description="Capture audio from a specific device and produce to Kafka.")
+parser.add_argument("--source_id", required=True, help="Unique identifier for this audio source (e.g., 'micA').")
+parser.add_argument("--device", type=int, required=True, help="Device index for sounddevice.")
+args = parser.parse_args()
 
 # Load settings
 with open("config/settings.yaml", "r") as f:
@@ -27,7 +33,7 @@ def main():
     producer = Producer(producer_conf)
     frame_size = get_frame_size(SAMPLE_RATE, FRAME_DURATION_MS)
     print("Starting audio capture. Press Ctrl+C to stop.")
-    with sd.InputStream(device=1,
+    with sd.InputStream(device=args.device,
                         channels=1,
                         samplerate=SAMPLE_RATE,
                         blocksize=frame_size,
@@ -41,9 +47,10 @@ def main():
                 frame_int16 = amplified_clamped.astype(np.int16)
                 frame_bytes = frame_int16.tobytes()
                 timestamp_key = str(int(time.time() * 1000))
+                message_key = f"{args.source_id}-{timestamp_key}"
                 producer.produce(
                     topic=RAW_AUDIO_TOPIC,
-                    key=timestamp_key,
+                    key=message_key,
                     value=frame_bytes
                 )
                 producer.poll(0)
